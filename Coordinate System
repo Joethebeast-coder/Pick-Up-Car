@@ -1,3 +1,11 @@
+"""
+This snippet of the code uses a raspberry pi camera to take a photo. 
+Then the process_and_annotate function to "draw" a grid box then
+uses a YOLO v11 model to identify the object and its center point.
+It then also returns which grid box the center point is in.
+
+"""
+
 import RPi.GPIO as GPIO
 import time
 import cv2
