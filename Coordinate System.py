@@ -1,0 +1,65 @@
+import RPi.GPIO as GPIO
+import time
+import cv2
+from picamera2 import Picamera2, Preview
+from ultralytics import YOLO
+
+# Motor pins
+DIR_PIN = 20
+STEP_PIN = 21
+EN_PIN = 16
+
+# Setup GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(DIR_PIN, GPIO.OUT)
+GPIO.setup(STEP_PIN, GPIO.OUT)
+GPIO.setup(EN_PIN, GPIO.OUT, initial=GPIO.HIGH)
+
+# Capture image
+picam2 = Picamera2()
+config = picam2.create_preview_configuration()
+picam2.configure(config)
+picam2.start_preview(Preview.QTGL)
+picam2.start()
+time.sleep(2)
+image_path = "capture.jpg"
+picam2.capture_file(image_path)
+picam2.close()
+
+# Load YOLO model (model name is different, this is a placeholder)
+model = YOLO("yolov11n.pt")
+
+def process_and_annotate(model, image_path, rows=10, cols=10, output_path="annotated.jpg"):
+    img = cv2.imread(image_path)
+    h, w = img.shape[:2]
+    cell_w = w / cols
+    cell_h = h / rows
+
+    # Draw grid
+    for i in range(1, rows):
+        y = int(i * cell_h)
+        cv2.line(img, (0, y), (w, y), (255, 0, 255), 2)
+    for j in range(1, cols):
+        x = int(j * cell_w)
+        cv2.line(img, (x, 0), (x, h), (255, 0, 255), 2)
+
+    # Object detection
+    results = model(image_path)
+    for i, box in enumerate(results[0].boxes.xyxy):
+        x_min, y_min, x_max, y_max = map(int, box)
+        cx = (x_min + x_max) // 2
+        cy = (y_min + y_max) // 2
+        col = int(cx // cell_w)
+        row = int(cy // cell_h)
+        cls_name = results[0].names[int(results[0].boxes.cls[i])]
+        conf = results[0].boxes.conf[i]
+
+        label = f"{cls_name} ({row},{col}) {conf:.2f}"
+        cv2.rectangle(img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        cv2.putText(img, label, (x_min, y_min - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+
+    cv2.imwrite(output_path, img)
+    return results
+
+process_and_annotate(model, image_path)
+print("Annotated image saved.")
